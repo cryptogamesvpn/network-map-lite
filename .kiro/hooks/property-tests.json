@@ -1,0 +1,17 @@
+﻿{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "run-property-tests-on-test-save",
+      "description": "Ejecuta las pruebas property-based con Jest cuando se guarda un archivo de test de propiedades.",
+      "enabled": true,
+      "trigger": "PostFileSave",
+      "matcher": "tests/.*\\.property\\.test\\.js$",
+      "action": {
+        "type": "command",
+        "command": "npx jest --testPathPattern property"
+      },
+      "timeout": 60
+    }
+  ]
+}

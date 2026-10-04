@@ -158,3 +158,38 @@ Reglas de integridad:
 | 4. Crear conexión | 4.1, 4.2, 4.3 | ConnectionForm | Dexie.connections | NetworkGraph refresco |
 | 5. Filtrar red | 5.1, 5.2, 5.3, 5.4, 5.5, 5.6 | FilterBar + ContactList | (en memoria) | NetworkGraph atenuación |
 | 6. Resiliencia básica | 6.1 | AppShell (notificación) | Dexie (try/catch) | NetworkGraph fallback |
+
+## Propiedades de Correctitud
+
+### Property 1: No duplicado por nombre + empresa
+
+*For any* secuencia de altas de contactos, si ya existe un contacto con la misma combinación de `name` y `company`, la operación de alta SHALL ser rechazada y el conjunto de contactos almacenados SHALL permanecer sin cambios.
+
+**Validates: Requirement 1.4, 2.3**
+
+- Generadores requeridos: `fc.array` de contactos con `name` y `company` generados como strings no vacíos, algunos repetidos intencionalmente.
+- Oráculos o invariantes: para todo par de contactos resultantes `a ≠ b`, `(a.name, a.company) ≠ (b.name, b.company)`.
+- Casos que deben excluirse: `name` o `company` vacíos (eso lo cubren los requisitos 1.2 y 1.3, no esta propiedad).
+- Framework propuesto: fast-check sobre Node.
+
+### Property 2: Origen ≠ destino en conexiones
+
+*For any* intento de crear una conexión con `sourceId === targetId`, la operación SHALL ser rechazada y el conjunto de conexiones almacenadas SHALL permanecer sin cambios.
+
+**Validates: Requirement 4.2**
+
+- Generadores requeridos: `fc.integer` para ids de contacto, forzando casos donde origen y destino coinciden.
+- Oráculos o invariantes: para toda conexión almacenada `c`, `c.sourceId !== c.targetId`.
+- Casos que deben excluirse: ids negativos o inexistentes (fuera del alcance de la regla).
+- Framework propuesto: fast-check sobre Node.
+
+### Property 3: Invariante de filtros combinados
+
+*For any* conjunto de contactos y combinación de filtros `(interés, texto, empresa)`, el resultado de aplicar los tres filtros simultáneamente SHALL ser subconjunto de la lista sin filtros, y SHALL coincidir con la intersección de aplicar cada filtro por separado.
+
+**Validates: Requirement 5.1, 5.2, 5.3, 5.4**
+
+- Generadores requeridos: `fc.array` de contactos con `name`, `company`, `interest` como strings; `fc.record` de filtros con valores opcionales.
+- Oráculos o invariantes: `filterAll(cs, f) ⊆ cs` y `filterAll(cs, f) = filterInterest(cs, f.interest) ∩ filterText(cs, f.text) ∩ filterCompany(cs, f.company)`.
+- Casos que deben excluirse: contactos con campos `undefined` en los campos filtrados (el modelo los define siempre presentes o vacíos).
+- Framework propuesto: fast-check sobre Node.
