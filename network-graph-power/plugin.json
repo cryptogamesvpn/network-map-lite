@@ -1,0 +1,10 @@
+﻿{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "network-graph-power",
+  "version": "1.0.0",
+  "description": "Build and maintain interactive network graphs with Cytoscape.js and local persistence with Dexie.js for Network Map Lite.",
+  "author": {
+    "name": "Network Map Lite"
+  },
+  "keywords": ["cytoscape", "graph", "network", "visualization", "dexie", "indexeddb", "contacts"]
+}

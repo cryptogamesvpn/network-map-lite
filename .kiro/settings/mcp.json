@@ -1,0 +1,21 @@
+﻿{
+  "mcpServers": {
+    "voidwalker": {
+      "command": "npx",
+      "args": ["-y", "voidwalker-mcp"],
+      "env": {
+        "VOIDWALKER_PORT": "3695"
+      },
+      "disabled": false,
+      "autoApprove": ["query_indexeddb", "search_indexeddb"],
+      "disabledTools": [
+        "set_storage",
+        "delete_storage",
+        "delete_indexeddb",
+        "navigate_tab",
+        "request_snapshot",
+        "clear_server_state"
+      ]
+    }
+  }
+}

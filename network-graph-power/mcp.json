@@ -1,0 +1,13 @@
+﻿{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "voidwalker": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "voidwalker-mcp"],
+      "env": {
+        "VOIDWALKER_PORT": "${VOIDWALKER_PORT}"
+      }
+    }
+  }
+}
