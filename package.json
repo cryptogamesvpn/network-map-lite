@@ -1,0 +1,16 @@
+{
+  "name": "network-map-lite",
+  "version": "1.0.0",
+  "description": "SPA local para gestionar contactos y visualizar relaciones en grafo interactivo.",
+  "private": true,
+  "scripts": {
+    "test": "jest --testPathPattern=tests/"
+  },
+  "devDependencies": {
+    "fast-check": "3.19.0",
+    "jest": "29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Map Lite</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Dexie.js CDN -->
+  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.min.js"></script>
+
+  <!-- Cytoscape.js CDN -->
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+
+  <!-- Vue 3 CDN (build global) -->
+  <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <div id="app">
+    <!-- Notificación de error no bloqueante (Req 6.1) -->
+    <transition name="fade">
+      <div
+        v-if="state.notification"
+        class="fixed top-4 right-4 z-50 max-w-sm bg-red-600 text-white text-sm rounded-lg shadow-lg px-4 py-3 flex items-start gap-2"
+        role="alert"
+      >
+        <span class="mt-0.5">⚠️</span>
+        <span class="flex-1">{{ state.notification }}</span>
+        <button @click="clearNotification" class="ml-2 font-bold hover:opacity-75">✕</button>
+      </div>
+    </transition>
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 shadow-sm">
+      <span class="text-xl">🕸️</span>
+      <h1 class="text-lg font-semibold text-gray-800">Network Map Lite</h1>
+    </header>
+
+    <!-- Layout de dos columnas -->
+    <main class="flex h-[calc(100vh-56px)] overflow-hidden">
+
+      <!-- Panel izquierdo: gestión -->
+      <aside class="w-96 min-w-[24rem] bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+
+        <!-- FilterBar (Req 5) -->
+        <section class="p-4 border-b border-gray-100">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Filtros</h2>
+          <div class="flex flex-col gap-2">
+            <input
+              v-model="state.filters.text"
+              type="text"
+              placeholder="Buscar por nombre o empresa…"
+              class="w-full text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <input
+              v-model="state.filters.interest"
+              type="text"
+              placeholder="Filtrar por interés…"
+              class="w-full text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <input
+              v-model="state.filters.company"
+              type="text"
+              placeholder="Filtrar por empresa…"
+              class="w-full text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <button
+              v-if="hasActiveFilters"
+              @click="clearFilters"
+              class="text-xs text-indigo-600 hover:underline self-end"
+            >Limpiar filtros</button>
+          </div>
+        </section>
+
+        <!-- ContactForm (Req 1, 2) -->
+        <section class="p-4 border-b border-gray-100">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            {{ state.editingContact ? 'Editar contacto' : 'Nuevo contacto' }}
+          </h2>
+          <form @submit.prevent="submitContactForm" class="flex flex-col gap-2">
+            <div>
+              <input
+                v-model="contactForm.name"
+                type="text"
+                placeholder="Nombre *"
+                class="w-full text-sm border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                :class="contactFormErrors.name ? 'border-red-400' : 'border-gray-300'"
+              />
+              <p v-if="contactFormErrors.name" class="text-xs text-red-500 mt-1">{{ contactFormErrors.name }}</p>
+            </div>
+            <div>
+              <input
+                v-model="contactForm.company"
+                type="text"
+                placeholder="Empresa *"
+                class="w-full text-sm border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                :class="contactFormErrors.company ? 'border-red-400' : 'border-gray-300'"
+              />
+              <p v-if="contactFormErrors.company" class="text-xs text-red-500 mt-1">{{ contactFormErrors.company }}</p>
+            </div>
+            <div>
+              <input
+                v-model="contactForm.interest"
+                type="text"
+                placeholder="Interés (opcional)"
+                class="w-full text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <p v-if="contactFormErrors.duplicate" class="text-xs text-red-500">{{ contactFormErrors.duplicate }}</p>
+            <div class="flex gap-2 mt-1">
+              <button
+                type="submit"
+                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md py-1.5 transition-colors"
+              >
+                {{ state.editingContact ? 'Guardar cambios' : 'Agregar contacto' }}
+              </button>
+              <button
+                v-if="state.editingContact"
+                type="button"
+                @click="cancelEditContact"
+                class="px-3 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >Cancelar</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ContactList (Req 2, 3) -->
+        <section class="p-4 border-b border-gray-100 flex-1">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Contactos
+            <span class="ml-1 text-gray-400 font-normal">({{ filteredContacts.length }})</span>
+          </h2>
+          <ul class="flex flex-col gap-1">
+            <li
+              v-for="contact in filteredContacts"
+              :key="contact.id"
+              class="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-gray-50 group"
+              :class="state.editingContact?.id === contact.id ? 'bg-indigo-50 ring-1 ring-indigo-300' : ''"
+            >
+              <div class="flex flex-col min-w-0">
+                <span class="text-sm font-medium text-gray-800 truncate">{{ contact.name }}</span>
+                <span class="text-xs text-gray-500 truncate">{{ contact.company }}<template v-if="contact.interest"> · {{ contact.interest }}</template></span>
+              </div>
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                <button
+                  @click="startEditContact(contact)"
+                  class="text-xs text-indigo-600 hover:underline"
+                  title="Editar"
+                >✏️</button>
+                <button
+                  @click="confirmDeleteContact(contact)"
+                  class="text-xs text-red-500 hover:underline"
+                  title="Eliminar"
+                >🗑️</button>
+              </div>
+            </li>
+            <li v-if="filteredContacts.length === 0" class="text-xs text-gray-400 py-2 text-center">
+              {{ hasActiveFilters ? 'Sin resultados para los filtros activos.' : 'Sin contactos aún.' }}
+            </li>
+          </ul>
+        </section>
+
+        <!-- ConnectionForm (Req 4) -->
+        <section class="p-4">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Nueva conexión</h2>
+          <form @submit.prevent="submitConnectionForm" class="flex flex-col gap-2">
+            <div>
+              <select
+                v-model="connectionForm.sourceId"
+                class="w-full text-sm border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                :class="connectionFormErrors.source ? 'border-red-400' : 'border-gray-300'"
+              >
+                <option value="" disabled>Origen *</option>
+                <option v-for="c in state.contacts" :key="c.id" :value="c.id">{{ c.name }} — {{ c.company }}</option>
+              </select>
+              <p v-if="connectionFormErrors.source" class="text-xs text-red-500 mt-1">{{ connectionFormErrors.source }}</p>
+            </div>
+            <div>
+              <select
+                v-model="connectionForm.targetId"
+                class="w-full text-sm border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                :class="connectionFormErrors.target ? 'border-red-400' : 'border-gray-300'"
+              >
+                <option value="" disabled>Destino *</option>
+                <option v-for="c in state.contacts" :key="c.id" :value="c.id">{{ c.name }} — {{ c.company }}</option>
+              </select>
+              <p v-if="connectionFormErrors.target" class="text-xs text-red-500 mt-1">{{ connectionFormErrors.target }}</p>
+            </div>
+            <div>
+              <input
+                v-model="connectionForm.reason"
+                type="text"
+                placeholder="Motivo (opcional)"
+                class="w-full text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <p v-if="connectionFormErrors.sameContact" class="text-xs text-red-500">{{ connectionFormErrors.sameContact }}</p>
+            <button
+              type="submit"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-md py-1.5 transition-colors"
+            >Crear conexión</button>
+          </form>
+        </section>
+
+      </aside>
+
+      <!-- Panel derecho: grafo -->
+      <div class="flex-1 relative bg-gray-50">
+        <!-- Fallback si Cytoscape no carga (Req 6.2) -->
+        <div
+          v-if="!cytoscapeAvailable"
+          class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm flex-col gap-2"
+        >
+          <span class="text-4xl">📋</span>
+          <p>El grafo no está disponible (Cytoscape.js no se pudo cargar).</p>
+          <p class="text-xs">La aplicación sigue operativa en modo lista.</p>
+        </div>
+        <div v-else id="cy" class="w-full h-full"></div>
+      </div>
+
+    </main>
+
+    <!-- Modal de confirmación de borrado -->
+    <div
+      v-if="state.deletingContact"
+      class="fixed inset-0 bg-black/40 flex items-center justify-center z-40"
+      @click.self="cancelDeleteContact"
+    >
+      <div class="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+        <h3 class="text-base font-semibold text-gray-800 mb-2">¿Eliminar contacto?</h3>
+        <p class="text-sm text-gray-600 mb-1">
+          Se eliminará <strong>{{ state.deletingContact.name }}</strong> ({{ state.deletingContact.company }})
+          y todas sus conexiones.
+        </p>
+        <p class="text-xs text-gray-400 mb-4">Esta acción no se puede deshacer.</p>
+        <div class="flex gap-3 justify-end">
+          <button
+            @click="cancelDeleteContact"
+            class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+          >Cancelar</button>
+          <button
+            @click="executeDeleteContact"
+            class="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+          >Eliminar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
